@@ -2,6 +2,7 @@
 # Dynu DDNS auto-updater with functions
 # Skips IPv6 if unavailable
 # Avoids env var conflicts and supports cron
+# Includes lockfile and IPv4 check
 # ---------------------------
 set -euo pipefail
 IFS=$'\n\t'
@@ -18,17 +19,16 @@ CURL_OPTIONS=(
     --max-time 10   # 10-second timeout
 )
 
+# Lockfile to prevent overlapping runs
+LOCK_FILE="/var/tmp/dynu_ddns.lock"
+
 # ---------------------------
 # CONFIG FILE
 # ---------------------------
 create_config() {
   if [[ ! -d "${CONFIG_FILE_DIR}" ]]; then
-    if mkdir -p "${CONFIG_FILE_DIR}"; then
-      printf "Created configuration file directory: '%s'\n" "${CONFIG_FILE_DIR}"
-    else
-      printf "Unable to create configuration file directory: '%s'\n" "${CONFIG_FILE_DIR}"
-      exit 1
-    fi
+    mkdir -p "${CONFIG_FILE_DIR}" || { echo "Unable to create config directory: ${CONFIG_FILE_DIR}"; exit 1; }
+    echo "Created configuration directory: ${CONFIG_FILE_DIR}"
   fi
 
   if [[ ! -f "${CONFIG_FILE}" ]]; then
@@ -41,33 +41,31 @@ DYNU_USERNAME="${DYNU_USERNAME:-your_username_here}"
 # dynu.com password (plain text or MD5/SHA256 hash)
 DYNU_PASSWORD="${DYNU_PASSWORD:-your_password_here}"
 
-# Dynamic DNS Domain
+# Dynamic DNS Domain (comma-separated if multiple)
 DYNU_HOSTNAME="${DYNU_HOSTNAME:-example.dynu.com}"
 
 # Use SSL/HTTPS
 USE_SSL=${USE_SSL:-true}
 
-# Full path to the current cron-safe state file which we contain the previous IP address
+# Path to cron-safe state file
 STATE_FILE="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
-
 
 #vim:filetype=conf:shiftwidth=2:softtabstop=2:expandtab
 EOF
-  printf "Created example configuration file: '%s'\n" "${CONFIG_FILE}"
-  printf "Please edit configuration file with your values: '%s'\n" "${CONFIG_FILE}"
-  exit 0
+    echo "Created example config file: ${CONFIG_FILE}"
+    echo "Please edit the config file with your values."
+    exit 0
   fi
 }
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
     echo "❌ Config file not found: '${CONFIG_FILE}'"
     create_config
-    exit 1
 fi
 
 # Load config variables
 # shellcheck disable=SC1090
-source "${CONFIG_FILE}" || printf "Unable to source configuration file: '%s'\n" "${CONFIG_FILE}" || exit 1
+source "${CONFIG_FILE}" || { echo "Unable to source config file: ${CONFIG_FILE}"; exit 1; }
 
 # ---------------------------
 # FUNCTIONS
@@ -81,7 +79,9 @@ get_base_url() {
 }
 
 get_current_ipv4() {
-  curl "${CURL_OPTIONS[@]}" 'https://api.ipify.org' || echo ""
+  local ip
+  ip=$(curl "${CURL_OPTIONS[@]}" 'https://api.ipify.org' || echo "")
+  echo "${ip}"
 }
 
 get_current_ipv6() {
@@ -90,7 +90,7 @@ get_current_ipv6() {
   if [[ "${ip}" == *:* ]]; then
     echo "${ip}"
   else
-    echo ""  # Skip IPv6
+    echo ""  # Skip IPv6 if not available
   fi
 }
 
@@ -151,11 +151,19 @@ handle_response() {
 # ---------------------------
 # MAIN SCRIPT
 # ---------------------------
-
 main() {
+  # Lock to prevent overlapping runs
+  exec 200>"${LOCK_FILE}"
+  flock -n 200 || { echo "Another instance is running. Exiting."; exit 0; }
+
   local ipv4 ipv6 last_ipv4 last_ipv6 base_url update_url response
 
   ipv4=$(get_current_ipv4)
+  if [[ -z "${ipv4}" ]]; then
+    echo "❌ Unable to determine current IPv4 address. Exiting."
+    exit 1
+  fi
+
   ipv6=$(get_current_ipv6)
   read last_ipv4 last_ipv6 <<< "$(read_last_ips)"
 
