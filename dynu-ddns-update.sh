@@ -7,11 +7,20 @@ set -euo pipefail
 IFS=$'\n\t'
 
 # ---------------------------
-# CONFIG FILE
+# VARIABLES
 # ---------------------------
 CONFIG_FILE_DIR="${CONFIG_FILE_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/dynu-ddns-update}"
 CONFIG_FILE="${CONFIG_FILE:-${CONFIG_FILE_DIR}/dynu_ddns.conf}"
+CURL_OPTIONS=(
+    --silent        # silent mode
+    --show-error    # show errors
+    --fail          # exit with non-zero if HTTP status >= 400
+    --max-time 10   # 10-second timeout
+)
 
+# ---------------------------
+# CONFIG FILE
+# ---------------------------
 create_config() {
   if [[ ! -d "${CONFIG_FILE_DIR}" ]]; then
     if mkdir -p "${CONFIG_FILE_DIR}"; then
@@ -72,12 +81,12 @@ get_base_url() {
 }
 
 get_current_ipv4() {
-  curl --silent 'https://api.ipify.org' || echo ""
+  curl "${CURL_OPTIONS[@]}" 'https://api.ipify.org' || echo ""
 }
 
 get_current_ipv6() {
   local ip
-  ip=$(curl --silent 'https://api64.ipify.org' || echo "")
+  ip=$(curl "${CURL_OPTIONS[@]}" 'https://api64.ipify.org' || echo "")
   if [[ "${ip}" == *:* ]]; then
     echo "${ip}"
   else
@@ -119,7 +128,7 @@ build_update_url() {
 
 send_update_request() {
   local url="${1}"
-  curl --silent "${url}"
+  curl "${CURL_OPTIONS[@]}" "${url}"
 }
 
 handle_response() {
