@@ -46,13 +46,7 @@ Place the script in a location accessible to the user running cron. Common optio
 - `~/bin/dynu-ddns-update.sh` *(user-specific)*
 
 ```bash
-sudo cp "dynu-ddns-update.sh" "/usr/local/bin/dynu-ddns-update.sh"
-```
-
-Make the script executable
-
-```bash
-chmod +x /usr/local/bin/dynu-ddns-update.sh
+sudo install -vDm755 "dynu-ddns-update.sh" "/usr/local/bin/dynu-ddns-update.sh"
 ```
 
 Run once manually to generate the configuration file

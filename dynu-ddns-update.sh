@@ -52,9 +52,14 @@ STATE_FILE="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
 
 #vim:filetype=conf:shiftwidth=2:softtabstop=2:expandtab
 EOF
+
+    chmod 600 "${CONFIG_FILE}"
     echo "Created example config file: ${CONFIG_FILE}"
     echo "Please edit the config file with your values."
     exit 0
+  else
+    info "Config file already exists, not overwriting:"
+    info "  ${CONFIG_FILE}"
   fi
 }
 

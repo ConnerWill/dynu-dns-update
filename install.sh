@@ -46,9 +46,9 @@ main() {
 
   info "Installing ${SCRIPT_NAME} to ${INSTALL_PATH}"
 
-  sudo install \
+  sudo install -D           \
     --mode "${SCRIPT_MODE}" \
-    "${SCRIPT_NAME}" \
+    "${SCRIPT_NAME}"        \
     "${INSTALL_PATH}"
 
   success "Script installed to ${INSTALL_PATH}"
