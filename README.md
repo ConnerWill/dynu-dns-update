@@ -12,6 +12,9 @@ Designed to run safely from cron with state tracking.
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Setup](#setup)
+    - [Installation](#installation)
+      - [Install Script](#install-script)
+      - [Manual installation](#manual-installation)
     - [Cron Setup](#cron-setup)
   - [Links](#links)
 <!--toc:end-->
@@ -24,6 +27,22 @@ Designed to run safely from cron with state tracking.
 - Stores last known IP in a separate state file for comparison
 
 ## Setup
+
+### Installation
+
+#### Install Script
+
+Run the `install.sh` script
+
+```bash
+./install.sh
+```
+
+```bash
+sudo ./install.sh
+```
+
+#### Manual installation
 
 Place the script in a location accessible to the user running cron. Common options
 
