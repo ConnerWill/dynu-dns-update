@@ -38,10 +38,6 @@ Run the `install.sh` script
 ./install.sh
 ```
 
-```bash
-sudo ./install.sh
-```
-
 #### Manual installation
 
 Place the script in a location accessible to the user running cron. Common options
