@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=2154,2153,2312,2162
 # Dynu DDNS auto-updater with functions
 # Skips IPv6 if unavailable
 # Avoids env var conflicts and supports cron
@@ -154,16 +155,17 @@ get_current_ipv6() {
 }
 
 read_last_ips() {
+  local ipv4 ipv6
   if [[ -f "${STATE_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${STATE_FILE}" || { fatal "Unable to source state file: ${STATE_FILE}"; }
-    IPV4=$(trim "${IPV4}")
-    IPV6=$(trim "${IPV6}")
+    ipv4=$(trim "${IPV4}")
+    ipv6=$(trim "${IPV6}")
   else
-    IPV4=""
-    IPV6=""
+    ipv4=""
+    ipv6=""
   fi
-  echo "${IPV4}" "${IPV6}"
+  echo "${ipv4}" "${ipv6}"
 }
 
 save_current_ips() {
@@ -220,8 +222,8 @@ main() {
   fi
 
   # Get current IPs
-  ipv4=$(get_current_ipv4)
-  ipv6=$(get_current_ipv6)
+  ipv4=$(trim "$(get_current_ipv4)")
+  ipv6=$(trim "$(get_current_ipv6)")
 
   # Check if IPv4 is empty
   if [[ -z "${ipv4}" ]]; then
@@ -229,7 +231,10 @@ main() {
   fi
 
   # Get last IPs
+  # shellcheck disable=SC2162
   read last_ipv4 last_ipv6 <<< "$(read_last_ips)"
+  last_ipv4=$(trim "${last_ipv4}")
+  last_ipv6=$(trim "${last_ipv6}")
 
   # Display current and previous IPs
   info "Current IPs: IPv4=${ipv4}, IPv6=${ipv6:-none}"
