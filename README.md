@@ -16,6 +16,8 @@ Designed to run safely from cron with state tracking.
       - [Install Script](#install-script)
       - [Manual installation](#manual-installation)
     - [Cron Setup](#cron-setup)
+    - [Logging](#logging)
+      - [Logrotate](#logrotate)
   - [Links](#links)
 <!--toc:end-->
 
@@ -82,11 +84,25 @@ Add the following line to run the updater every 10 minutes
 */10 * * * * /usr/local/bin/dynu_ddns.sh
 ```
 
+### Logging
+
+By default, `dynu-ddns-update.sh` creates and logs to log file:
+
+- `${XDG_STATE_HOME:-${HOME}/.local/state}/dynu-ddns/dynu-ddns-update.log`
+
+The log file path can be changed in the configuration file: `LOG_FILE`
+
 > [!NOTE]
 > If you are not root, choose a log file under your home directory,
 > e.g. `~/dynu_ddns.log`. Make sure the path is writable.
 
+#### Logrotate
+
 Optional: Use `logrotate` to prevent logs from growing indefinitely
+
+```bash
+sudoedit /etc/logrotate.d/dynu-ddns-update
+```
 
 ```console
 /home/*/.local/state/dynu-ddns/dynu-ddns-update.log {
