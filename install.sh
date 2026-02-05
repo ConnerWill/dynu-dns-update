@@ -49,9 +49,7 @@ main() {
   sudo install -D           \
     --mode "${SCRIPT_MODE}" \
     "${SCRIPT_NAME}"        \
-    "${INSTALL_PATH}"
-
-  success "Script installed to ${INSTALL_PATH}"
+    "${INSTALL_PATH}" && { success "Script installed to ${INSTALL_PATH}"; }
 
   if [[ ! -f "${CONFIG_FILE}" ]]; then
     info "Config file not found, creating initial config"
