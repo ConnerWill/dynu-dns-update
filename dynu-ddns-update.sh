@@ -222,6 +222,10 @@ main() {
   info "Current IPs: IPv4=${ipv4}, IPv6=${ipv6:-none}"
   info "Last IPs:    IPv4=${last_ipv4:-none}, IPv6=${last_ipv6:-none}"
 
+  # TODO: I think there is an issue with the LAST_IPs section,
+  # I think the last IPv4 address has an extra space after the IP address before the comma above.
+  # This is probably the reason it thinks there is a IP change detected
+
   # Check if current IP matches previous IP
   if [[ "${ipv4}" == "${last_ipv4}" && "${ipv6}" == "${last_ipv6}" ]]; then
     info "No IP change detected - no update needed"
