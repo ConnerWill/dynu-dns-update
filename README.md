@@ -82,12 +82,6 @@ Add the following line to run the updater every 10 minutes
 */10 * * * * /usr/local/bin/dynu_ddns.sh
 ```
 
-Add the following line to run the updater every 10 minutes and log output
-
-```console
-*/10 * * * * /usr/local/bin/dynu_ddns.sh >> /var/log/dynu_ddns.log 2>&1
-```
-
 > [!NOTE]
 > If you are not root, choose a log file under your home directory,
 > e.g. `~/dynu_ddns.log`. Make sure the path is writable.
@@ -95,15 +89,18 @@ Add the following line to run the updater every 10 minutes and log output
 Optional: Use `logrotate` to prevent logs from growing indefinitely
 
 ```console
-/var/log/dynu_ddns.log {
+/path/to/dynu_ddns.log {
     weekly
     rotate 4
     compress
     missingok
     notifempty
-    create 644 root root
+    create 644 user user
 }
 ```
+
+> [!NOTE]
+> Replace 'user user' with the username which is running the script.
 
 ## Links
 
