@@ -22,7 +22,7 @@ die() {
 }
 
 info() {
-  printf "ℹ %s\n" "${1}"
+  printf "ℹ  %s\n" "${1}"
 }
 
 success() {
@@ -44,36 +44,47 @@ main() {
   require_install
   require_script
 
-  info "Installing ${SCRIPT_NAME} to ${INSTALL_PATH}"
+  info "Installing '${SCRIPT_NAME}' to '${INSTALL_PATH}'"
 
   sudo install -D           \
     --mode "${SCRIPT_MODE}" \
     "${SCRIPT_NAME}"        \
-    "${INSTALL_PATH}" && { success "Script installed to ${INSTALL_PATH}"; }
+    "${INSTALL_PATH}" && { success "Script installed to '${INSTALL_PATH}'"; }
 
   if [[ ! -f "${CONFIG_FILE}" ]]; then
     info "Config file not found, creating initial config"
     mkdir -p "${CONFIG_DIR}"
 
     cat <<EOF > "${CONFIG_FILE}"
-# Dynu DDNS configuration
+## ${SCRIPT_NAME}
+## ${CONFIG_FILE}
 
-DYNU_USERNAME="your_username_here"
-DYNU_PASSWORD="your_password_here"
-DYNU_HOSTNAME="example.dynu.com"
+# dynu.com username
+DYNU_USERNAME="${DYNU_USERNAME:-your_username_here}"
 
-USE_SSL=true
+# dynu.com password (plain text or MD5/SHA256 hash)
+DYNU_PASSWORD="${DYNU_PASSWORD:-your_password_here}"
 
-# Cron-safe state file
-STATE_FILE="/var/tmp/dynu_ddns_state"
+# Dynamic DNS Domain
+DYNU_HOSTNAME="${DYNU_HOSTNAME:-example.dynu.com}"
+
+# Use SSL/HTTPS
+USE_SSL=${USE_SSL:-true}
+
+# Path to log file
+LOG_FILE="${LOG_FILE:-${XDG_STATE_HOME:-${HOME}/.local/state}/dynu-ddns/dynu-ddns-update.log}"
+
+# Path to cron-safe state file
+STATE_FILE="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
+
+#vim:filetype=conf:shiftwidth=2:softtabstop=2:expandtab
 EOF
 
     chmod 600 "${CONFIG_FILE}"
     success "Created config file at ${CONFIG_FILE}"
     info "Please edit this file before enabling cron"
   else
-    info "Config file already exists, not overwriting:"
-    info "  ${CONFIG_FILE}"
+    info "Config file already exists, not overwriting: '${CONFIG_FILE}'"
   fi
 
   cat <<EOF
