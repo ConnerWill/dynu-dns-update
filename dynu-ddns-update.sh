@@ -6,6 +6,7 @@
 # ---------------------------
 set -euo pipefail
 IFS=$'\n\t'
+umask 077
 
 # ---------------------------
 # VARIABLES
@@ -18,6 +19,8 @@ LOCK_FILE="${LOCK_FILE:-/var/tmp/dynu_ddns.lock}"
 STATE_FILE_DEFAULT="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
 IPV4_QUERY_URL='https://api.ipify.org'
 IPV6_QUERY_URL='https://api64.ipify.org'
+DYNU_API_URL_HTTPS="https://api.dynu.com/nic/update"
+DYNU_API_URL_HTTP="http://api.dynu.com/nic/update"
 CURL_OPTIONS=(
     --silent        # silent mode
     --show-error    # show errors
@@ -51,6 +54,7 @@ log() {
 info()    { log INFO    "${*}"; }
 warn()    { log WARN    "${*}"; }
 error()   { log ERROR   "${*}"; }
+fatal()   { error       "${@}"; exit 1; }
 
 # ---------------------------
 # CONFIG FILE
@@ -71,7 +75,7 @@ DYNU_USERNAME="${DYNU_USERNAME:-your_username_here}"
 # dynu.com password (plain text or MD5/SHA256 hash)
 DYNU_PASSWORD="${DYNU_PASSWORD:-your_password_here}"
 
-# Dynamic DNS Domain (comma-separated if multiple)
+# Dynamic DNS Domain
 DYNU_HOSTNAME="${DYNU_HOSTNAME:-example.dynu.com}"
 
 # Use SSL/HTTPS
@@ -101,14 +105,18 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
     create_config
 fi
 
+# ---------------------------
+# INIT
+# ---------------------------
 # Load config variables
 # shellcheck disable=SC1090
-source "${CONFIG_FILE}" || { error "Unable to source config file: ${CONFIG_FILE}"; exit 1; }
+source "${CONFIG_FILE}" || { fatal "Unable to source config file: ${CONFIG_FILE}"; }
 
 STATE_FILE="${STATE_FILE:-${STATE_FILE_DEFAULT}}"
 LOG_FILE="${LOG_FILE:-${LOG_FILE_DEFAULT}}"
 
 log_init
+trap 'info "=== Dynu DDNS run finished (exit code: $?) ==="' EXIT
 info "=== Dynu DDNS run started ==="
 
 # ---------------------------
@@ -116,9 +124,9 @@ info "=== Dynu DDNS run started ==="
 # ---------------------------
 get_base_url() {
   if ${USE_SSL}; then
-    echo "https://api.dynu.com/nic/update"
+    echo "${DYNU_API_URL_HTTPS}"
   else
-    echo "http://api.dynu.com/nic/update"
+    echo "${DYNU_API_URL_HTTP}"
   fi
 }
 
@@ -139,15 +147,12 @@ get_current_ipv6() {
 }
 
 read_last_ips() {
-  local last_ipv4 last_ipv6
+  local IPV4 IPV6
   if [[ -f "${STATE_FILE}" ]]; then
-    last_ipv4=$(grep '^IPV4=' "${STATE_FILE}" | cut -d'=' -f2- || echo "")
-    last_ipv6=$(grep '^IPV6=' "${STATE_FILE}" | cut -d'=' -f2- || echo "")
-  else
-    last_ipv4=""
-    last_ipv6=""
+    # shellcheck disable=SC1090
+    source "${STATE_FILE}" || { fatal "Unable to source state file: ${STATE_FILE}"; }
   fi
-  echo "${last_ipv4}" "${last_ipv6}"
+  echo "${IPV4}" "${IPV6}"
 }
 
 save_current_ips() {
@@ -207,8 +212,7 @@ main() {
 
   # Check if IPv4 is empty
   if [[ -z "${ipv4}" ]]; then
-    error "Unable to determine current IPv4 address"
-    exit 1
+    fatal "Unable to determine current IPv4 address"
   fi
 
   # Get last IPs
@@ -242,5 +246,3 @@ main() {
 }
 
 main
-
-info "=== Dynu DDNS run finished ==="

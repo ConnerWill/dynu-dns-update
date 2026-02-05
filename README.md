@@ -62,8 +62,9 @@ Edit the configuration file
 ```conf
 DYNU_USERNAME="your_username_here"
 DYNU_PASSWORD="your_password_here"
-DYNU_HOSTNAME="example.dynu.com"   # or comma-separated for multiple hostnames
-USE_SSL=true                        # true or false
+DYNU_HOSTNAME="example.dynu.com"
+USE_SSL=true
+LOG_FILE="${XDG_STATE_HOME:-${HOME}/.local/state}/dynu-ddns/dynu-ddns-update.log"
 STATE_FILE="/var/tmp/dynu_ddns_state"
 ```
 
