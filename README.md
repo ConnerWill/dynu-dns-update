@@ -89,7 +89,7 @@ Add the following line to run the updater every 10 minutes
 Optional: Use `logrotate` to prevent logs from growing indefinitely
 
 ```console
-/path/to/dynu_ddns.log {
+/home/*/.local/state/dynu-ddns/dynu-ddns-update.log {
     weekly
     rotate 4
     compress
@@ -98,6 +98,9 @@ Optional: Use `logrotate` to prevent logs from growing indefinitely
     create 644 user user
 }
 ```
+
+> [!NOTE]
+> Change the path to the log file if you changed the default log path
 
 > [!NOTE]
 > Replace 'user user' with the username which is running the script.
