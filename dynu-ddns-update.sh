@@ -13,9 +13,11 @@ IFS=$'\n\t'
 CONFIG_FILE_DIR="${CONFIG_FILE_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/dynu-ddns-update}"
 CONFIG_FILE="${CONFIG_FILE:-${CONFIG_FILE_DIR}/dynu_ddns.conf}"
 LOG_DIR_DEFAULT="${XDG_STATE_HOME:-${HOME}/.local/state}/dynu-ddns"
-LOG_FILE_DEFAULT="${LOG_FILE:-${LOG_DIR_DEFAULT}/dynu-ddns-update.log}"
+LOG_FILE_DEFAULT="${LOG_DIR_DEFAULT}/dynu-ddns-update.log"
 LOCK_FILE="${LOCK_FILE:-/var/tmp/dynu_ddns.lock}"
 STATE_FILE_DEFAULT="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
+IPV4_QUERY_URL='https://api.ipify.org'
+IPV6_QUERY_URL='https://api64.ipify.org'
 CURL_OPTIONS=(
     --silent        # silent mode
     --show-error    # show errors
@@ -27,8 +29,14 @@ CURL_OPTIONS=(
 # LOGGING
 # -----------------------------------------------
 log_init() {
-  mkdir -p "$(dirname "${LOG_FILE}")"
-  touch "${LOG_FILE}"
+  mkdir -p "$(dirname "${LOG_FILE}")" || {
+    echo "FATAL: Unable to create log directory for ${LOG_FILE}" >&2
+    exit 1
+  }
+  touch "${LOG_FILE}" || {
+    echo "FATAL: Unable to write to log file ${LOG_FILE}" >&2
+    exit 1
+  }
   chmod 600 "${LOG_FILE}"
 }
 
@@ -40,7 +48,6 @@ log() {
   printf '%s [%s] %s\n' "${current_date}" "${level}" "${*}" >> "${LOG_FILE}"
 }
 
-success() { log SUCCESS "${*}"; }
 info()    { log INFO    "${*}"; }
 warn()    { log WARN    "${*}"; }
 error()   { log ERROR   "${*}"; }
@@ -117,13 +124,13 @@ get_base_url() {
 
 get_current_ipv4() {
   local ip
-  ip=$(curl "${CURL_OPTIONS[@]}" 'https://api.ipify.org' || echo "")
+  ip=$(curl "${CURL_OPTIONS[@]}" "${IPV4_QUERY_URL}" || true)
   echo "${ip}"
 }
 
 get_current_ipv6() {
   local ip
-  ip=$(curl "${CURL_OPTIONS[@]}" 'https://api64.ipify.org' || echo "")
+  ip=$(curl "${CURL_OPTIONS[@]}" "${IPV6_QUERY_URL}" || true)
   if [[ "${ip}" == *:* ]]; then
     echo "${ip}"
   else
@@ -167,17 +174,17 @@ send_update_request() {
 handle_response() {
   local response="${1}"
   case "${response}" in
-    good*)        success "IP update successful: ${response}" ;;
-    nochg*)       info    "IP unchanged: ${response}" ;;
-    badauth*)     error   "Authentication failed: ${response}" ;;
-    nohost*)      error   "Hostname not found: ${response}" ;;
-    notfqdn*)     error   "Invalid hostname: ${response}" ;;
+    good*)        info    "IP update successful: ${response}"         ;;
+    nochg*)       info    "IP unchanged: ${response}"                 ;;
+    badauth*)     error   "Authentication failed: ${response}"        ;;
+    nohost*)      error   "Hostname not found: ${response}"           ;;
+    notfqdn*)     error   "Invalid hostname: ${response}"             ;;
     numhost*)     error   "Too many hostnames specified: ${response}" ;;
-    abuse*)       error   "Abuse detected: ${response}" ;;
-    dnserr*)      error   "Server DNS error: ${response}" ;;
-    servererror*) error   "Server error: ${response}" ;;
-    911*)         warn    "Server maintenance: ${response}" ;;
-    *)            warn    "Unknown response: ${response}" ;;
+    abuse*)       error   "Abuse detected: ${response}"               ;;
+    dnserr*)      error   "Server DNS error: ${response}"             ;;
+    servererror*) error   "Server error: ${response}"                 ;;
+    911*)         warn    "Server maintenance: ${response}"           ;;
+    *)            warn    "Unknown response: ${response}"             ;;
   esac
 }
 
@@ -189,7 +196,7 @@ main() {
 
   # Lock to prevent overlapping runs
   exec 200>"${LOCK_FILE}"
-  if flock -n 200; then
+  if ! flock -n 200; then
     warn "Another instance is running. Exiting."
     exit 0
   fi
@@ -220,7 +227,6 @@ main() {
   # Build URL
   base_url=$(get_base_url)
   update_url=$(build_update_url "${base_url}" "${ipv4}" "${ipv6}")
-
 
   # Update DYNU DDNS entry
   info "IP change detected. Updating Dynu DDNS for ${DYNU_HOSTNAME}..."
