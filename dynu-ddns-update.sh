@@ -12,6 +12,10 @@ IFS=$'\n\t'
 # ---------------------------
 CONFIG_FILE_DIR="${CONFIG_FILE_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/dynu-ddns-update}"
 CONFIG_FILE="${CONFIG_FILE:-${CONFIG_FILE_DIR}/dynu_ddns.conf}"
+LOG_DIR_DEFAULT="${XDG_STATE_HOME:-${HOME}/.local/state}/dynu-ddns"
+LOG_FILE_DEFAULT="${LOG_FILE:-${LOG_DIR_DEFAULT}/dynu-ddns-update.log}"
+LOCK_FILE="${LOCK_FILE:-/var/tmp/dynu_ddns.lock}"
+STATE_FILE_DEFAULT="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
 CURL_OPTIONS=(
     --silent        # silent mode
     --show-error    # show errors
@@ -19,8 +23,27 @@ CURL_OPTIONS=(
     --max-time 10   # 10-second timeout
 )
 
-# Lockfile to prevent overlapping runs
-LOCK_FILE="/var/tmp/dynu_ddns.lock"
+# -----------------------------------------------
+# LOGGING
+# -----------------------------------------------
+log_init() {
+  mkdir -p "$(dirname "${LOG_FILE}")"
+  touch "${LOG_FILE}"
+  chmod 600 "${LOG_FILE}"
+}
+
+log() {
+  local level current_date
+  level="${1}"
+  shift
+  current_date="$(date '+%Y-%m-%d %H:%M:%S')"
+  printf '%s [%s] %s\n' "${current_date}" "${level}" "${*}" >> "${LOG_FILE}"
+}
+
+success() { log SUCCESS "${*}"; }
+info()    { log INFO    "${*}"; }
+warn()    { log WARN    "${*}"; }
+error()   { log ERROR   "${*}"; }
 
 # ---------------------------
 # CONFIG FILE
@@ -47,6 +70,9 @@ DYNU_HOSTNAME="${DYNU_HOSTNAME:-example.dynu.com}"
 # Use SSL/HTTPS
 USE_SSL=${USE_SSL:-true}
 
+# Path to log file
+LOG_FILE="${LOG_FILE:-${XDG_STATE_HOME:-${HOME}/.local/state}/dynu-ddns/dynu-ddns-update.log}"
+
 # Path to cron-safe state file
 STATE_FILE="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
 
@@ -70,7 +96,13 @@ fi
 
 # Load config variables
 # shellcheck disable=SC1090
-source "${CONFIG_FILE}" || { echo "Unable to source config file: ${CONFIG_FILE}"; exit 1; }
+source "${CONFIG_FILE}" || { error "Unable to source config file: ${CONFIG_FILE}"; exit 1; }
+
+STATE_FILE="${STATE_FILE:-${STATE_FILE_DEFAULT}}"
+LOG_FILE="${LOG_FILE:-${LOG_FILE_DEFAULT}}"
+
+log_init
+info "=== Dynu DDNS run started ==="
 
 # ---------------------------
 # FUNCTIONS
@@ -123,11 +155,7 @@ EOF
 build_update_url() {
   local base="${1}" ipv4="${2}" ipv6="${3}"
   local url="${base}?hostname=${DYNU_HOSTNAME}&myip=${ipv4}&password=${DYNU_PASSWORD}"
-  if [[ -n "${ipv6}" ]]; then
-    url="${url}&myipv6=${ipv6}"
-  else
-    url="${url}&myipv6=no"
-  fi
+  [[ -n "${ipv6}" ]] && url+="&myipv6=${ipv6}" || url+="&myipv6=no"
   echo "${url}"
 }
 
@@ -139,17 +167,17 @@ send_update_request() {
 handle_response() {
   local response="${1}"
   case "${response}" in
-    good*) echo "✅ IP update successful: ${response}" ;;
-    nochg*) echo "ℹ IP unchanged: ${response}" ;;
-    badauth*) echo "❌ Authentication failed: ${response}" ;;
-    nohost*) echo "❌ Hostname not found: ${response}" ;;
-    notfqdn*) echo "❌ Invalid hostname: ${response}" ;;
-    numhost*) echo "❌ Too many hostnames specified: ${response}" ;;
-    abuse*) echo "❌ Abuse detected: ${response}" ;;
-    dnserr*) echo "❌ Server DNS error: ${response}" ;;
-    servererror*) echo "❌ Server error: ${response}" ;;
-    911*) echo "⏸ Server maintenance: ${response}. Retry after 10 minutes." ;;
-    *) echo "⚠ Unknown response: ${response}" ;;
+    good*)        success "IP update successful: ${response}" ;;
+    nochg*)       info    "IP unchanged: ${response}" ;;
+    badauth*)     error   "Authentication failed: ${response}" ;;
+    nohost*)      error   "Hostname not found: ${response}" ;;
+    notfqdn*)     error   "Invalid hostname: ${response}" ;;
+    numhost*)     error   "Too many hostnames specified: ${response}" ;;
+    abuse*)       error   "Abuse detected: ${response}" ;;
+    dnserr*)      error   "Server DNS error: ${response}" ;;
+    servererror*) error   "Server error: ${response}" ;;
+    911*)         warn    "Server maintenance: ${response}" ;;
+    *)            warn    "Unknown response: ${response}" ;;
   esac
 }
 
@@ -157,34 +185,56 @@ handle_response() {
 # MAIN SCRIPT
 # ---------------------------
 main() {
-  # Lock to prevent overlapping runs
-  exec 200>"${LOCK_FILE}"
-  flock -n 200 || { echo "Another instance is running. Exiting."; exit 0; }
-
   local ipv4 ipv6 last_ipv4 last_ipv6 base_url update_url response
 
-  ipv4=$(get_current_ipv4)
-  if [[ -z "${ipv4}" ]]; then
-    echo "❌ Unable to determine current IPv4 address. Exiting."
-    exit 1
-  fi
-
-  ipv6=$(get_current_ipv6)
-  read last_ipv4 last_ipv6 <<< "$(read_last_ips)"
-
-  if [[ "${ipv4}" == "${last_ipv4}" && "${ipv6}" == "${last_ipv6}" ]]; then
-    echo "No IP change detected. Dynu update not required."
+  # Lock to prevent overlapping runs
+  exec 200>"${LOCK_FILE}"
+  if flock -n 200; then
+    warn "Another instance is running. Exiting."
     exit 0
   fi
 
+  # Get current IPs
+  ipv4=$(get_current_ipv4)
+  ipv6=$(get_current_ipv6)
+
+  # Check if IPv4 is empty
+  if [[ -z "${ipv4}" ]]; then
+    error "Unable to determine current IPv4 address"
+    exit 1
+  fi
+
+  # Get last IPs
+  read last_ipv4 last_ipv6 <<< "$(read_last_ips)"
+
+  # Display current and previous IPs
+  info "Current IPs: IPv4=${ipv4}, IPv6=${ipv6:-none}"
+  info "Last IPs:    IPv4=${last_ipv4:-none}, IPv6=${last_ipv6:-none}"
+
+  # Check if current IP matches previous IP
+  if [[ "${ipv4}" == "${last_ipv4}" && "${ipv6}" == "${last_ipv6}" ]]; then
+    info "No IP change detected - no update needed"
+    exit 0
+  fi
+
+  # Build URL
   base_url=$(get_base_url)
   update_url=$(build_update_url "${base_url}" "${ipv4}" "${ipv6}")
-  echo "IP change detected. Updating Dynu DDNS for ${DYNU_HOSTNAME}..."
+
+
+  # Update DYNU DDNS entry
+  info "IP change detected. Updating Dynu DDNS for ${DYNU_HOSTNAME}..."
   response=$(send_update_request "${update_url}")
 
+  # Handle response
   handle_response "${response}"
+
+  # Save current IPs
   save_current_ips "${ipv4}" "${ipv6}"
-  echo "✅ Dynu DDNS state updated."
+
+  info "Dynu DDNS state updated: ${DYNU_HOSTNAME}"
 }
 
 main
+
+info "=== Dynu DDNS run finished ==="
