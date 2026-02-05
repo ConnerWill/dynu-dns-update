@@ -62,8 +62,8 @@ fatal()   { error       "${@}"; exit 1; }
 # ---------------------------
 create_config() {
   if [[ ! -d "${CONFIG_FILE_DIR}" ]]; then
-    mkdir -p "${CONFIG_FILE_DIR}" || { echo "Unable to create config directory: ${CONFIG_FILE_DIR}"; exit 1; }
-    echo "Created configuration directory: ${CONFIG_FILE_DIR}"
+    mkdir -p "${CONFIG_FILE_DIR}" || { echo "Unable to create config directory: '${CONFIG_FILE_DIR}'"; exit 1; }
+    echo "Created configuration directory: '${CONFIG_FILE_DIR}'"
   fi
 
   if [[ ! -f "${CONFIG_FILE}" ]]; then
@@ -92,12 +92,11 @@ STATE_FILE="${STATE_FILE:-/var/tmp/dynu_ddns_state}"
 EOF
 
     chmod 600 "${CONFIG_FILE}"
-    echo "Created example config file: ${CONFIG_FILE}"
+    echo "Created example config file: '${CONFIG_FILE}'"
     echo "Please edit the config file with your values."
     exit 0
   else
-    info "Config file already exists, not overwriting:"
-    info "  ${CONFIG_FILE}"
+    info "Config file already exists, not overwriting: '${CONFIG_FILE}'"
   fi
 }
 
@@ -111,7 +110,7 @@ fi
 # ---------------------------
 # Load config variables
 # shellcheck disable=SC1090
-source "${CONFIG_FILE}" || { fatal "Unable to source config file: ${CONFIG_FILE}"; }
+source "${CONFIG_FILE}" || { fatal "Unable to source config file: '${CONFIG_FILE}'"; }
 
 STATE_FILE="${STATE_FILE:-${STATE_FILE_DEFAULT}}"
 LOG_FILE="${LOG_FILE:-${LOG_FILE_DEFAULT}}"
@@ -158,7 +157,7 @@ read_last_ips() {
   local ipv4 ipv6
   if [[ -f "${STATE_FILE}" ]]; then
     # shellcheck disable=SC1090
-    source "${STATE_FILE}" || { fatal "Unable to source state file: ${STATE_FILE}"; }
+    source "${STATE_FILE}" || { fatal "Unable to source state file: '${STATE_FILE}'"; }
     ipv4=$(trim "${IPV4}")
     ipv6=$(trim "${IPV6}")
   else
@@ -217,7 +216,7 @@ main() {
   # Lock to prevent overlapping runs
   exec 200>"${LOCK_FILE}"
   if ! flock -n 200; then
-    warn "Another instance is running. Exiting."
+    warn "Another instance is running. Exiting... Lock File: '${LOCK_FILE}'"
     exit 0
   fi
 
@@ -255,7 +254,7 @@ main() {
   update_url=$(build_update_url "${base_url}" "${ipv4}" "${ipv6}")
 
   # Update DYNU DDNS entry
-  info "IP change detected. Updating Dynu DDNS for ${DYNU_HOSTNAME}..."
+  info "IP change detected. Updating Dynu DDNS for '${DYNU_HOSTNAME}' ..."
   response=$(send_update_request "${update_url}")
 
   # Handle response
@@ -264,7 +263,7 @@ main() {
   # Save current IPs
   save_current_ips "${ipv4}" "${ipv6}"
 
-  info "Dynu DDNS state updated: ${DYNU_HOSTNAME}"
+  info "Dynu DDNS state updated: '${DYNU_HOSTNAME}'"
 }
 
 main
