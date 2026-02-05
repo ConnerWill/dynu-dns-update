@@ -130,6 +130,13 @@ get_base_url() {
   fi
 }
 
+trim() {
+  local var="${1}"
+  var="${var#"${var%%[![:space:]]*}"}"   # remove leading whitespace
+  var="${var%"${var##*[![:space:]]}"}"   # remove trailing whitespace
+  echo "${var}"
+}
+
 get_current_ipv4() {
   local ip
   ip=$(curl "${CURL_OPTIONS[@]}" "${IPV4_QUERY_URL}" || true)
@@ -147,21 +154,27 @@ get_current_ipv6() {
 }
 
 read_last_ips() {
-  local IPV4="" IPV6=""
   if [[ -f "${STATE_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${STATE_FILE}" || { fatal "Unable to source state file: ${STATE_FILE}"; }
+    IPV4=$(trim "${IPV4}")
+    IPV6=$(trim "${IPV6}")
+  else
+    IPV4=""
+    IPV6=""
   fi
   echo "${IPV4}" "${IPV6}"
 }
 
 save_current_ips() {
-  local ipv4="${1}" ipv6="${2}"
+  local ipv4 ipv6
+  ipv4=$(trim "${1}")
+  ipv6=$(trim "${2}")
   mkdir -p "$(dirname "${STATE_FILE}")"
-  cat > "${STATE_FILE}" <<EOF
-IPV4=${ipv4}
-IPV6=${ipv6}
-EOF
+  {
+    printf "IPV4=%s\n" "${ipv4}"
+    printf "IPV6=%s\n" "${ipv6}"
+  } > "${STATE_FILE}" || fatal "Unable to write to state file: '${STATE_FILE}'"
 }
 
 build_update_url() {
